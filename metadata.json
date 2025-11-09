@@ -1,0 +1,5 @@
+{
+  "name": "日記MBTI",
+  "description": "An application that analyzes your diary entries to determine your MBTI personality type, allowing you to track changes over time.",
+  "requestFramePermissions": []
+}
