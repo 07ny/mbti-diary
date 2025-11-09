@@ -17,32 +17,27 @@ const getAnalysisPrompt = (text: string) => `
 `;
 
 // この関数はリクエストを処理します。
-export default async function handler(req: Request) {
+// VercelのNode.jsランタイムに合わせ、 (req, res) のシグネチャに変更します。
+export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: '許可されていないメソッドです。' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    res.setHeader('Allow', ['POST']);
+    return res.status(405).json({ error: '許可されていないメソッドです。' });
   }
 
   try {
-    const { text } = await req.json();
+    // req.json() の代わりに req.body を使用します。
+    // Vercelが自動的にJSONボディをパースしてくれます。
+    const { text } = req.body;
 
     if (!text || typeof text !== 'string' || text.length < 20) {
-        return new Response(JSON.stringify({ error: '有効なテキスト（20文字以上）が必要です。' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-        });
+        return res.status(400).json({ error: '有効なテキスト（20文字以上）が必要です。' });
     }
 
     // Vercelの環境変数からAPIキーを取得します。
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
       console.error("API_KEY environment variable not set on Vercel.");
-      return new Response(JSON.stringify({ error: 'サーバーにAPIキーが設定されていません。Vercelのプロジェクト設定を確認してください。' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return res.status(500).json({ error: 'サーバーにAPIキーが設定されていません。Vercelのプロジェクト設定を確認してください。' });
     }
 
     const ai = new GoogleGenAI({ apiKey });
@@ -67,7 +62,7 @@ export default async function handler(req: Request) {
     
     const prompt = getAnalysisPrompt(text);
 
-    const response = await ai.models.generateContent({
+    const geminiResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
@@ -77,7 +72,7 @@ export default async function handler(req: Request) {
     });
 
     // AIからの応答テキストを取得し、前後の空白やMarkdownコードブロックを除去
-    let jsonString = response.text.trim();
+    let jsonString = geminiResponse.text.trim();
     if (jsonString.startsWith('```json')) {
       jsonString = jsonString.slice(7, -3).trim();
     } else if (jsonString.startsWith('```')) {
@@ -86,10 +81,8 @@ export default async function handler(req: Request) {
     
     const result = JSON.parse(jsonString);
 
-    return new Response(JSON.stringify(result), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    // new Response() の代わりに res.status().json() を使用
+    return res.status(200).json(result);
 
   } catch (error) {
     console.error('Error in /api/analyze:', error);
@@ -104,9 +97,7 @@ export default async function handler(req: Request) {
         userFriendlyMessage = 'AIサーバーへの接続に失敗しました。ネットワークの問題か、APIキーが間違っている可能性があります。'
     }
 
-    return new Response(JSON.stringify({ error: userFriendlyMessage }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    // new Response() の代わりに res.status().json() を使用
+    return res.status(500).json({ error: userFriendlyMessage });
   }
 }
